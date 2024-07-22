@@ -38,7 +38,60 @@ static std::string type2str(int type) {
 
 int main(int argc, char *argv[])
 {
+    #define input_imgs_size (1*12*128*256) * 2
+    #define big_input_imgs_size (1*12*128*256) * 2
+    #define desire_size (1*100*8) * 2
+    #define traffic_convention_size (1*2) * 2
+    #define lateral_control_params_size (1*2) * 2
+    #define prev_desired_curv_size (1*100*1) * 2
+    #define nav_features_size (1*256) * 2
+    #define nav_instructions_size (1*150) * 2
+    #define features_buffer_size (1*99*512) * 2
+
+    srand(time(NULL));
+
     SupercomboModel model(model_path);
+
+    std::array<float, input_imgs_size> input_imgs;
+    std::generate(input_imgs.begin(), input_imgs.end(), rand);
+    model.AddInput("input_imgs", &input_imgs, input_imgs_size);
+
+    std::array<float, big_input_imgs_size> big_input_imgs{0};
+    std::generate(big_input_imgs.begin(), big_input_imgs.end(), rand);
+    model.AddInput("big_input_imgs", &big_input_imgs, big_input_imgs_size);
+
+    std::array<float, desire_size> desire{0};
+    std::generate(desire.begin(), desire.end(), rand);
+    model.AddInput("desire", &desire, desire_size);
+
+    std::array<float, traffic_convention_size> traffic_convention{0};
+    std::generate(traffic_convention.begin(), traffic_convention.end(), rand);
+    model.AddInput("traffic_convention", &traffic_convention, traffic_convention_size);
+
+    std::array<float, lateral_control_params_size> lateral_control_params{0};
+    std::generate(lateral_control_params.begin(), lateral_control_params.end(), rand);
+    model.AddInput("lateral_control_params", &lateral_control_params, lateral_control_params_size);
+
+    std::array<float, prev_desired_curv_size> prev_desired_curv{0};
+    std::generate(prev_desired_curv.begin(), prev_desired_curv.end(), rand);
+    model.AddInput("prev_desired_curv", &prev_desired_curv, prev_desired_curv_size);
+
+    std::array<float, nav_features_size> nav_features{0};
+    std::generate(nav_features.begin(), nav_features.end(), rand);
+    model.AddInput("nav_features", &nav_features, nav_features_size);
+
+    std::array<float, nav_instructions_size> nav_instructions{0};
+    std::generate(nav_instructions.begin(), nav_instructions.end(), rand);
+    model.AddInput("nav_instructions", &nav_instructions, nav_instructions_size);
+
+    std::array<float, features_buffer_size> features_buffer{0};
+    std::generate(features_buffer.begin(), features_buffer.end(), rand);
+    model.AddInput("features_buffer", &features_buffer, features_buffer_size);
+
+    std::array<float, 6504*2> output{0};
+    model.AddOutput("outputs", &output, 6504*2);
+
+    model.Run();
 #if 1
     // read video
     cv::VideoCapture cap = cv::VideoCapture(video_path, cv::CAP_ANY);
@@ -58,28 +111,15 @@ int main(int argc, char *argv[])
         // reize the frame
         cv::Mat nframe;
         cv::resize(frame, nframe, cv::Size(512, 256));
-        // std::cout << "Resize rows: " << nframe.rows << " cols: " << nframe.cols << " Channel: " << nframe.channels() << std::endl;
 
         // convert to YUV420
         cv::Mat yuv;
-        cv::cvtColor(nframe, yuv, cv::COLOR_BGR2YUV);
-
-        // split YUV
-        std::vector<cv::Mat> channels;
-        cv::split(yuv, channels);
+        cv::cvtColor(nframe, yuv, cv::COLOR_BGR2YUV_I420);
+        // cv::cvtColor(yuv, yuv, cv::COLOR_YUV2BGR_NV12);
+        std::cout << yuv.total() << " " << yuv.size() << std::endl;
+        std::cout << "Resize rows: " << yuv.rows << " cols: " << yuv.cols << " Channel: " << yuv.channels() << std::endl;
     
-        cv::imshow("Live Y", channels[0]);
-        cv::imshow("Live U", channels[1]);
-        cv::imshow("Live V", channels[2]);
-
-        cv::Mat newframe = cv::Mat::zeros(cv::Size(512, 256), CV_8UC(6));
-
-        std::vector<cv::Mat> t;
-        cv::split(newframe, t);
-        
-        cv::resize(channels[1], t[4], cv::Size(256, 128));
-        cv::resize(channels[2], t[5], cv::Size(256, 128));
-        cv::imshow("Live x", t[4]);
+        cv::imshow("Live YUV-NV12", yuv);
 
         // 20Hz = 1 / 20 = 0.050s = 50ms
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
