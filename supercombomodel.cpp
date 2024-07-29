@@ -30,7 +30,8 @@ SupercomboModel::SupercomboModel(std::string path) : session(nullptr) {
         Ort::SessionOptions sessionOptions;
         sessionOptions.SetGraphOptimizationLevel(ORT_DISABLE_ALL);
 
-        session = new Ort::Session(env, path.c_str(), sessionOptions);
+        session = std::make_unique<Ort::Session>(env, path.c_str(), sessionOptions);
+        ioBinding = std::make_unique<Ort::IoBinding>(*session);
     }
     
     size_t inputCount = session->GetInputCount();
@@ -39,7 +40,7 @@ SupercomboModel::SupercomboModel(std::string path) : session(nullptr) {
     Ort::AllocatorWithDefaultOptions allocator;
 
     std::cout << "Input count: " <<  inputCount << std::endl;
-    for (int index = 0; index < inputCount; ++index) {
+    for (size_t index = 0; index < inputCount; ++index) {
         auto inputName = session->GetInputNameAllocated(index, allocator);
         std::cout << "Name: " << inputName.get();
 
@@ -52,11 +53,13 @@ SupercomboModel::SupercomboModel(std::string path) : session(nullptr) {
         std::vector<int64_t> shape = typeAndShapeInfo.GetShape();
         std::cout << " Shape: " << shape << std::endl;
 
-        inputs[inputName.get()] = std::make_pair(shape, type);
+        Ort::Value value = Ort::Value::CreateTensor(allocator, shape.data(), shape.size(), type);
+        inputs[inputName.get()] = value.GetTensorMutableRawData();
+        ioBinding->BindInput(inputName.get(), std::move(value));
     }
 
     std::cout << "Output count: " <<  outputCount << std::endl;
-    for (int index = 0; index < outputCount; ++index) {
+    for (size_t index = 0; index < outputCount; ++index) {
         auto outputName = session->GetOutputNameAllocated(index, allocator);
         std::cout << "Name: " << outputName.get();
 
@@ -69,50 +72,39 @@ SupercomboModel::SupercomboModel(std::string path) : session(nullptr) {
         std::vector<int64_t> shape = typeAndShapeInfo.GetShape();
         std::cout << " Shape: " << shape << std::endl;
 
-        outputs[outputName.get()] = std::make_pair(shape, type);
+        Ort::Value value = Ort::Value::CreateTensor(allocator, shape.data(), shape.size(), type);
+        outputs[outputName.get()] = value.GetTensorMutableRawData();
+        ioBinding->BindOutput(outputName.get(), std::move(Ort::Value::CreateTensor(allocator, shape.data(), shape.size(), type)));
     }
 }
 
 SupercomboModel::~SupercomboModel() {
-    if (session) {
-        delete session;
-        session = nullptr;
-    }
 }
 
 void SupercomboModel::AddInput(const char* name, void* data, ssize_t dataLen) {
+    Ort::AllocatorWithDefaultOptions allocator;
+
     auto input = inputs.find(name);
     if (input == inputs.end()) {
         // not found
         std::cout << "not found" << std::endl; 
     } else {
-        auto memoryInfo = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
-        std::vector<int64_t> shape = input->second.first;
-        ONNXTensorElementDataType type = input->second.second;
-        Ort::Value value = Ort::Value::CreateTensor(memoryInfo, data, dataLen, shape.data(), shape.size(), type);
-        inputNames.emplace_back(name);
-        inputValues.emplace_back(std::move(value));
+        memcpy(input->second, data, dataLen);
     }
 
-}
-
-void SupercomboModel::AddOutput(const char* name, void *data, ssize_t dataLen) {
-    auto output = outputs.find(name);
-    if (output == outputs.end()) {
-        // not found
-        std::cout << "not found" << std::endl; 
-    } else {
-        auto memoryInfo = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
-        std::vector<int64_t> shape = output->second.first;
-        ONNXTensorElementDataType type = output->second.second;
-        Ort::Value value = Ort::Value::CreateTensor(memoryInfo, data, dataLen, shape.data(), shape.size(), type);
-        outputNames.emplace_back(name);
-        outputValues.emplace_back(std::move(value));
-    }
 }
 
 void SupercomboModel::Run() {
     Ort::RunOptions runOptions;
 
-    std::vector<Ort::Value> outputs = session->Run(runOptions, inputNames.data(), inputValues.data(), inputValues.size(), outputNames.data(), outputValues.size());
+    session->Run(runOptions, *ioBinding);
+    std::vector<Ort::Value> outputs = ioBinding->GetOutputValues();
+    for (auto itr = outputs.begin(); itr != outputs.end(); ++itr) {
+        Ort::Value& value = *itr;
+        std::cout << value.GetTensorTypeAndShapeInfo().GetShape() << std::endl;
+        const void* data = value.GetTensorRawData();
+        for (int i = 0; i < 6504; ++i) {
+            printf("%f ", ((const float *)data)[i]);
+        }
+    }
 }

@@ -9,7 +9,7 @@
 
 #include "supercombomodel.h"
 
-const char *model_path = "supercombo.onnx";
+const char *model_path = "supercombo_f32.onnx";
 const char *video_path = "video.hevc";
 
 static std::string type2str(int type) {
@@ -38,15 +38,15 @@ static std::string type2str(int type) {
 
 int main(int argc, char *argv[])
 {
-    #define input_imgs_size (1*12*128*256) * 2
-    #define big_input_imgs_size (1*12*128*256) * 2
-    #define desire_size (1*100*8) * 2
-    #define traffic_convention_size (1*2) * 2
-    #define lateral_control_params_size (1*2) * 2
-    #define prev_desired_curv_size (1*100*1) * 2
-    #define nav_features_size (1*256) * 2
-    #define nav_instructions_size (1*150) * 2
-    #define features_buffer_size (1*99*512) * 2
+    #define input_imgs_size (1*12*128*256)
+    #define big_input_imgs_size (1*12*128*256)
+    #define desire_size (1*100*8)
+    #define traffic_convention_size (1*2)
+    #define lateral_control_params_size (1*2)
+    #define prev_desired_curv_size (1*100*1)
+    #define nav_features_size (1*256)
+    #define nav_instructions_size (1*150)
+    #define features_buffer_size (1*99*512)
 
     srand(time(NULL));
 
@@ -54,42 +54,45 @@ int main(int argc, char *argv[])
 
     std::array<float, input_imgs_size> input_imgs;
     std::generate(input_imgs.begin(), input_imgs.end(), rand);
-    model.AddInput("input_imgs", &input_imgs, input_imgs_size);
+    model.AddInput("input_imgs", input_imgs.data(), input_imgs_size);
 
-    std::array<float, big_input_imgs_size> big_input_imgs{0};
+    std::array<float, big_input_imgs_size> big_input_imgs;
     std::generate(big_input_imgs.begin(), big_input_imgs.end(), rand);
-    model.AddInput("big_input_imgs", &big_input_imgs, big_input_imgs_size);
+    model.AddInput("big_input_imgs", big_input_imgs.data(), big_input_imgs_size);
 
-    std::array<float, desire_size> desire{0};
+    std::array<float, desire_size> desire;
     std::generate(desire.begin(), desire.end(), rand);
-    model.AddInput("desire", &desire, desire_size);
+    model.AddInput("desire", desire.data(), desire_size);
 
-    std::array<float, traffic_convention_size> traffic_convention{0};
+    std::array<float, traffic_convention_size> traffic_convention;
     std::generate(traffic_convention.begin(), traffic_convention.end(), rand);
-    model.AddInput("traffic_convention", &traffic_convention, traffic_convention_size);
+    model.AddInput("traffic_convention", traffic_convention.data(), traffic_convention_size);
 
-    std::array<float, lateral_control_params_size> lateral_control_params{0};
+    std::array<float, lateral_control_params_size> lateral_control_params;
     std::generate(lateral_control_params.begin(), lateral_control_params.end(), rand);
-    model.AddInput("lateral_control_params", &lateral_control_params, lateral_control_params_size);
+    model.AddInput("lateral_control_params", lateral_control_params.data(), lateral_control_params_size);
 
-    std::array<float, prev_desired_curv_size> prev_desired_curv{0};
+    std::array<float, prev_desired_curv_size> prev_desired_curv;
     std::generate(prev_desired_curv.begin(), prev_desired_curv.end(), rand);
-    model.AddInput("prev_desired_curv", &prev_desired_curv, prev_desired_curv_size);
+    model.AddInput("prev_desired_curv", prev_desired_curv.data(), prev_desired_curv_size);
 
-    std::array<float, nav_features_size> nav_features{0};
+    std::array<float, nav_features_size> nav_features;
     std::generate(nav_features.begin(), nav_features.end(), rand);
-    model.AddInput("nav_features", &nav_features, nav_features_size);
+    model.AddInput("nav_features", nav_features.data(), nav_features_size);
 
-    std::array<float, nav_instructions_size> nav_instructions{0};
+    std::array<float, nav_instructions_size> nav_instructions;
     std::generate(nav_instructions.begin(), nav_instructions.end(), rand);
-    model.AddInput("nav_instructions", &nav_instructions, nav_instructions_size);
+    model.AddInput("nav_instructions", nav_instructions.data(), nav_instructions_size);
 
-    std::array<float, features_buffer_size> features_buffer{0};
+    std::array<float, features_buffer_size> features_buffer;
     std::generate(features_buffer.begin(), features_buffer.end(), rand);
-    model.AddInput("features_buffer", &features_buffer, features_buffer_size);
+    model.AddInput("features_buffer", features_buffer.data(), features_buffer_size);
 
-    std::array<float, 6504*2> output{0};
-    model.AddOutput("outputs", &output, 6504*2);
+    // std::vector<float> output;
+    // model.AddOutput("outputs", output.data(), 6504*4);
+    // for (auto out : output) {
+    //     std::cout << out << std::endl;
+    // }
 
     model.Run();
 #if 1
@@ -116,8 +119,8 @@ int main(int argc, char *argv[])
         cv::Mat yuv;
         cv::cvtColor(nframe, yuv, cv::COLOR_BGR2YUV_I420);
         // cv::cvtColor(yuv, yuv, cv::COLOR_YUV2BGR_NV12);
-        std::cout << yuv.total() << " " << yuv.size() << std::endl;
-        std::cout << "Resize rows: " << yuv.rows << " cols: " << yuv.cols << " Channel: " << yuv.channels() << std::endl;
+        // std::cout << yuv.total() << " " << yuv.size() << std::endl;
+        // std::cout << "Resize rows: " << yuv.rows << " cols: " << yuv.cols << " Channel: " << yuv.channels() << std::endl;
     
         cv::imshow("Live YUV-NV12", yuv);
 
